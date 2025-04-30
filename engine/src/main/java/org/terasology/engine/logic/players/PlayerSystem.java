@@ -46,19 +46,27 @@ import java.util.List;
 
 @RegisterSystem(RegisterMode.AUTHORITY)
 public class PlayerSystem extends BaseComponentSystem implements UpdateSubscriberSystem {
+
     private static final Logger LOGGER = LoggerFactory.getLogger(PlayerSystem.class);
+
     @In
     private EntityManager entityManager;
+
     @In
     private WorldGenerator worldGenerator;
+
     @In
     private WorldProvider worldProvider;
+
     @In
     private ChunkProvider chunkProvider;
+
     @In
     private RelevanceSystem relevanceSystem;
+
     @In
     private NetworkSystem networkSystem;
+
     private List<SpawningClientInfo> clientsPreparingToSpawn = Lists.newArrayList();
     private List<SpawningClientInfo> clientsPreparingToRespawn = Lists.newArrayList();
 
@@ -68,7 +76,6 @@ public class PlayerSystem extends BaseComponentSystem implements UpdateSubscribe
 
     @Override
     public void update(float delta) {
-
         Iterator<SpawningClientInfo> i = clientsPreparingToSpawn.iterator();
         while (i.hasNext()) {
             SpawningClientInfo spawning = i.next();
@@ -95,14 +102,6 @@ public class PlayerSystem extends BaseComponentSystem implements UpdateSubscribe
         }
     }
 
-    /**
-     * This saves a dead player entity, which is meant to be preserved, to not be destroyed even after the
-     * {@link AliveCharacterComponent} is stripped off.
-     *
-     * @param event
-     * @param entity
-     * @param playerCharacterComponent
-     */
     @ReceiveEvent
     public void beforeDestroyDeadPlayer(BeforeDestroyEvent event, EntityRef entity, PlayerCharacterComponent playerCharacterComponent) {
         if (!entity.hasComponent(AliveCharacterComponent.class)) {
@@ -113,28 +112,22 @@ public class PlayerSystem extends BaseComponentSystem implements UpdateSubscribe
     @ReceiveEvent(components = ClientComponent.class)
     public void onConnect(ConnectedEvent connected, EntityRef entity) {
         LocationComponent loc = entity.getComponent(LocationComponent.class);
-
-        // for new clients, the player store will return default values
         PlayerStore playerStore = connected.getPlayerStore();
-
         Client owner = networkSystem.getOwner(entity);
         Vector3ic minViewDist = ViewDistance.LEGALLY_BLIND.getChunkDistance();
 
         if (playerStore.hasCharacter()) {
-
             Vector3fc storedLocation = playerStore.getRelevanceLocation();
             loc.setWorldPosition(storedLocation);
             entity.saveComponent(loc);
 
             if (worldProvider.isBlockRelevant(storedLocation)) {
-                // chunk for spawning location is ready, so spawn right now
                 playerStore.restoreEntities();
                 EntityRef character = playerStore.getCharacter();
                 Vector3ic viewDist = owner.getViewDistance().getChunkDistance();
                 addRelevanceEntity(entity, viewDist, owner);
                 restoreCharacter(entity, character);
             } else {
-                // otherwise wait until chunk is ready
                 addRelevanceEntity(entity, minViewDist, owner);
                 clientsPreparingToSpawn.add(new SpawningClientInfo(entity, storedLocation, playerStore));
             }
@@ -153,9 +146,7 @@ public class PlayerSystem extends BaseComponentSystem implements UpdateSubscribe
     }
 
     private void restoreCharacter(EntityRef entity, EntityRef character) {
-
         Client clientListener = networkSystem.getOwner(entity);
-        LOGGER.info("{}", clientListener);
         updateRelevanceEntity(entity, clientListener.getViewDistance().getChunkDistance());
 
         ClientComponent client = entity.getComponent(ClientComponent.class);
@@ -167,6 +158,7 @@ public class PlayerSystem extends BaseComponentSystem implements UpdateSubscribe
             characterComp.controller = entity;
             character.saveComponent(characterComp);
             character.setOwner(entity);
+
             if (!character.hasComponent(AliveCharacterComponent.class)) {
                 respawnPlayer(entity);
             }
@@ -178,22 +170,14 @@ public class PlayerSystem extends BaseComponentSystem implements UpdateSubscribe
     }
 
     private void updateRelevanceEntity(EntityRef entity, Vector3ic chunkDistance) {
-        //RelevanceRegionComponent relevanceRegion = new RelevanceRegionComponent();
-        //relevanceRegion.distance = chunkDistance;
-        //entity.saveComponent(relevanceRegion);
         relevanceSystem.updateRelevanceEntityDistance(entity, chunkDistance);
     }
 
     private void removeRelevanceEntity(EntityRef entity) {
-        //entity.removeComponent(RelevanceRegionComponent.class);
         relevanceSystem.removeRelevanceEntity(entity);
     }
 
-
     private void addRelevanceEntity(EntityRef entity, Vector3ic chunkDistance, Client owner) {
-        //RelevanceRegionComponent relevanceRegion = new RelevanceRegionComponent();
-        //relevanceRegion.distance = chunkDistance;
-        //entity.addComponent(relevanceRegion);
         relevanceSystem.addRelevanceEntity(entity, chunkDistance, owner);
     }
 
@@ -209,15 +193,16 @@ public class PlayerSystem extends BaseComponentSystem implements UpdateSubscribe
         EntityRef character = clientComponent.character;
         EntityRef clientInfo = clientComponent.clientInfo;
 
-        Vector3fc spawnPosition;
+        Vector3f spawnPosition;
         if (clientInfo.hasComponent(StaticSpawnLocationComponent.class)) {
             spawnPosition = clientInfo.getComponent(StaticSpawnLocationComponent.class).position;
         } else {
-            spawnPosition = worldGenerator.getSpawnPosition(entity);
+            spawnPosition = new Vector3f(worldGenerator.getSpawnPosition(entity));
         }
+
         LocationComponent loc = character.getComponent(LocationComponent.class);
         loc.setWorldPosition(spawnPosition);
-        loc.setLocalRotation(new Quaternionf());  // reset rotation
+        loc.setLocalRotation(new Quaternionf());
         character.saveComponent(loc);
     }
 
@@ -230,40 +215,36 @@ public class PlayerSystem extends BaseComponentSystem implements UpdateSubscribe
             respawnPlayer(entity);
         } else {
             updateRelevanceEntity(entity, ViewDistance.LEGALLY_BLIND.getChunkDistance());
-            SpawningClientInfo info = new SpawningClientInfo(entity, spawnPosition);
-            clientsPreparingToRespawn.add(info);
+            clientsPreparingToRespawn.add(new SpawningClientInfo(entity, spawnPosition));
         }
     }
 
     private void respawnPlayer(EntityRef clientEntity) {
-
         ClientComponent client = clientEntity.getComponent(ClientComponent.class);
         EntityRef playerCharacter = client.character;
         LocationComponent location = playerCharacter.getComponent(LocationComponent.class);
+
         PlayerFactory playerFactory = new PlayerFactory(entityManager, worldProvider);
         Vector3f spawnPosition = playerFactory.findSpawnPositionFromLocationComponent(location);
 
         playerCharacter.addComponent(new AliveCharacterComponent());
         playerCharacter.send(new CharacterTeleportEvent(spawnPosition));
 
-        LOGGER.debug("Re-spawing player at: {}", spawnPosition);
-
         Client clientListener = networkSystem.getOwner(clientEntity);
-        Vector3ic distance = clientListener.getViewDistance().getChunkDistance();
-        updateRelevanceEntity(clientEntity, distance);
+        updateRelevanceEntity(clientEntity, clientListener.getViewDistance().getChunkDistance());
+
         playerCharacter.send(new OnPlayerRespawnedEvent());
     }
 
     private void spawnPlayer(EntityRef clientEntity) {
-
         ClientComponent client = clientEntity.getComponent(ClientComponent.class);
 
         PlayerFactory playerFactory = new PlayerFactory(entityManager, worldProvider);
         EntityRef playerCharacter = playerFactory.newInstance(clientEntity);
 
         Client clientListener = networkSystem.getOwner(clientEntity);
-        Vector3ic distance = clientListener.getViewDistance().getChunkDistance();
-        updateRelevanceEntity(clientEntity, distance);
+        updateRelevanceEntity(clientEntity, clientListener.getViewDistance().getChunkDistance());
+
         client.character = playerCharacter;
         clientEntity.saveComponent(client);
         playerCharacter.send(new OnPlayerSpawnedEvent());
