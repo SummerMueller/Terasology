@@ -3,6 +3,7 @@
 
 package org.terasology.engine.logic.chat;
 
+import org.joml.Vector3f;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.terasology.engine.entitySystem.entity.EntityManager;
@@ -10,6 +11,9 @@ import org.terasology.engine.entitySystem.entity.EntityRef;
 import org.terasology.engine.entitySystem.systems.BaseComponentSystem;
 import org.terasology.engine.entitySystem.systems.RegisterSystem;
 import org.terasology.engine.input.binds.general.ChatButton;
+import org.terasology.engine.logic.characters.CharacterMovementComponent;
+import org.terasology.engine.logic.characters.MovementMode;
+import org.terasology.engine.logic.characters.events.SetMovementModeEvent;
 import org.terasology.engine.logic.common.DisplayNameComponent;
 import org.terasology.engine.logic.console.ConsoleColors;
 import org.terasology.engine.logic.console.CoreMessageType;
@@ -57,6 +61,13 @@ public class ChatSystem extends BaseComponentSystem {
             nuiManager.pushScreen(CHAT_UI);
             overlay.setVisible(false);
             event.consume();
+
+            EntityRef character = entity.getComponent(ClientComponent.class).character;
+
+            if (character != null && character.exists()) {
+                // Send an event to switch to NONE mode (stops walking)
+                character.send(new SetMovementModeEvent(MovementMode.NONE));
+            }
         }
     }
 
