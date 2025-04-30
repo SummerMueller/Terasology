@@ -23,8 +23,8 @@ import java.util.Objects;
  * A private certificate contains the key that only the certificate owner should know. Used for signing and decryption
  */
 public class PrivateIdentityCertificate {
-    private BigInteger modulus;
-    private BigInteger exponent;
+    private BigInteger modulus;   // The product of two large prime numbers
+    private BigInteger exponent;   // Used to encrypt/decrypt data
 
     public PrivateIdentityCertificate(BigInteger modulus, BigInteger exponent) {
         this.modulus = modulus;
@@ -50,9 +50,12 @@ public class PrivateIdentityCertificate {
 
         Signature signer = null;
         try {
+            // Creates a signature object using the algorithm defined in IdentityConstants
             signer = Signature.getInstance(IdentityConstants.SIGNATURE_ALGORITHM);
             KeyFactory keyFactory = KeyFactory.getInstance(IdentityConstants.CERTIFICATE_ALGORITHM);
+            // Generates the private key
             PrivateKey key = keyFactory.generatePrivate(keySpec);
+            // Creates the signature object and signs with the key
             signer.initSign(key, new SecureRandom());
             signer.update(dataToSign);
             return signer.sign();
@@ -86,6 +89,7 @@ public class PrivateIdentityCertificate {
         }
     }
 
+    // Compares two private identity certificates
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
@@ -98,6 +102,7 @@ public class PrivateIdentityCertificate {
         return false;
     }
 
+    // Generates a hash code based on the modulus and exponent
     @Override
     public int hashCode() {
         return Objects.hash(modulus.hashCode(), exponent.hashCode());
