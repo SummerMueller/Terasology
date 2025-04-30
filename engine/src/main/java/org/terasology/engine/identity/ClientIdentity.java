@@ -8,11 +8,13 @@ import java.util.Objects;
 
 public class ClientIdentity {
 
-
+    // Public certificate is used for identification by others
     private PublicIdentityCertificate playerPublicCertificate;
+    // Private certificate is used for internal authentication
     private PrivateIdentityCertificate playerPrivateCertificate;
 
     /**
+     * Constructor for the new client identity with both certificates
      * @param publicCert  The public certificate to be passed
      * @param privateCert The private certificate to be passed
      */
@@ -38,11 +40,13 @@ public class ClientIdentity {
         return playerPrivateCertificate;
     }
 
+    // Creates a hash code for the certificates
     @Override
     public int hashCode() {
         return Objects.hash(playerPublicCertificate, playerPrivateCertificate);
     }
 
+    // Checks if two client identities are equal to each other by validating both certificates are equal
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
