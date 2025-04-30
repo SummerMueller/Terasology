@@ -16,6 +16,8 @@ import org.terasology.engine.rendering.ShaderManager;
 import org.terasology.engine.rendering.nui.CoreScreenLayer;
 import org.terasology.engine.rendering.nui.animation.MenuAnimationSystems;
 import org.terasology.engine.rendering.nui.layers.mainMenu.WaitPopup;
+// imports message popup class
+import org.terasology.engine.rendering.nui.layers.mainMenu.MessagePopup;
 import org.terasology.engine.rendering.world.viewDistance.ViewDistance;
 import org.terasology.gestalt.assets.ResourceUrn;
 import org.terasology.input.Keyboard;
@@ -41,6 +43,10 @@ public class VideoSettingsScreen extends CoreScreenLayer {
 
     private static final Logger logger = LoggerFactory.getLogger(VideoSettingsScreen.class);
     private static final long RESOLUTION_REVERT_TIME_MS = 15000;
+    
+    // inclusion to track if warning already shown 
+    private boolean ultraWarningShown = false;
+
 
     @In
     private Config config;
@@ -61,12 +67,53 @@ public class VideoSettingsScreen extends CoreScreenLayer {
     @SuppressWarnings("unchecked")
     public void initialise() {
         setAnimationSystem(MenuAnimationSystems.createDefaultSwipeAnimation());
+        
         UIDropdown<Preset> videoQuality = find("graphicsPreset", UIDropdown.class);
-        if (videoQuality != null) {
-            videoQuality.setOptionRenderer(new ToStringTextRenderer<>(translationSystem));
-            videoQuality.setOptions(Lists.newArrayList(Preset.CUSTOM, Preset.MINIMAL, Preset.LOW, Preset.MEDIUM, Preset.HIGH, Preset.ULTRA));
-            videoQuality.bindSelection(new PresetBinding(config.getRendering()));
-        }
+         if (videoQuality != null) {
+             videoQuality.setOptionRenderer(new ToStringTextRenderer<>(translationSystem));
+             videoQuality.setOptions(Lists.newArrayList(Preset.CUSTOM, Preset.MINIMAL, Preset.LOW, Preset.MEDIUM, Preset.HIGH, Preset.ULTRA));
+
+            // when user selects the ultra setting binds and makes a handler  
+             videoQuality.bindSelection(new Binding<Preset>() {
+                 // keeps track of the preselected setting
+                 private Preset currentSelection = null;
+
+                 @Override
+                 public Preset get() {
+                    // returns the selected preset in the dropdown menu
+                     return currentSelection;
+                 }
+
+                 @Override
+                 public void set(Preset selected) {
+                    // for when user chooses ultra, show warning 
+                    if (Preset.ULTRA.equals(selected)) {
+                        WaitPopup<Void> popup = getManager().pushScreen(WaitPopup.ASSET_URI, WaitPopup.class);
+                        popup.setTitleText("Warning: High Performance Mode");
+                        
+                        // warning message 
+                        popup.bindMessageText(new ReadOnlyBinding<String>() {
+                            @Override
+                            public String get() {
+                                return "Ultra settings require very high system performance. Continue?";
+                            }
+                        });
+                        // when accepts popup apply settings 
+                        popup.onSuccess(result -> {
+                            Preset.ULTRA.apply(config.getRendering());
+                            saveSettings();
+                            currentSelection = selected; // Update after confirmation
+                        });
+                    } else {
+                       // if chooses any other version, immediately apply settings 
+                        selected.apply(config.getRendering());
+                        saveSettings();
+                        currentSelection = selected;
+                    }
+               }    
+            });
+         }
+
 
         UIDropdown<ViewDistance> viewDistance = find("viewDistance", UIDropdown.class);
         if (viewDistance != null) {
@@ -78,7 +125,7 @@ public class VideoSettingsScreen extends CoreScreenLayer {
         UISlider chunkThreads = find("chunkThreads", UISlider.class);
         if (chunkThreads != null) {
             chunkThreads.setIncrement(1.0f);
-            chunkThreads.setPrecision(0);
+            chunkThreads.setPrecision(0); 
             chunkThreads.setMinimum(0);
             chunkThreads.setRange(Runtime.getRuntime().availableProcessors());
             chunkThreads.setLabelFunction(input -> {
