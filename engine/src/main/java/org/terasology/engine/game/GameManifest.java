@@ -32,23 +32,50 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Represents the saved metadata of game, including title, seed, modules,
+ * worlds, block family registration, and module configuration settings.
+ * <p>
+ * This information can be saved to or loaded from a file (usually "manifest.json").
+ */
 public class GameManifest {
+
+    /** Default file name used for saving a manifest */
     public static final String DEFAULT_FILE_NAME = "manifest.json";
 
     private static final Logger logger = LoggerFactory.getLogger(GameManifest.class);
 
+    // --- Basic Info ---
     private String title = "";
     private String seed = "";
     private long time;
+
+    // --- Block Data ---
     private List<String> registeredBlockFamilies = Lists.newArrayList();
     private Map<String, Short> blockIdMap = Maps.newHashMap();
+
+    // --- World Info ---
     private Map<String, WorldInfo> worlds = Maps.newHashMap();
+
+    // --- Module Info ---
     private List<NameVersion> modules = Lists.newArrayList();
+
+    // --- Module Configs ---
     private Map<SimpleUri, Map<String, JsonElement>> moduleConfigs = Maps.newHashMap();
 
+    /**
+     * Creates a blank GameManifest.
+     */
     public GameManifest() {
     }
 
+    /**
+     * Creates a GameManifest with specified title, seed, and time.
+     *
+     * @param title The title of the game.
+     * @param seed The world seed.
+     * @param time The in-game time.
+     */
     public GameManifest(String title, String seed, long time) {
         if (title != null) {
             this.title = title;
@@ -59,9 +86,7 @@ public class GameManifest {
         this.time = time;
     }
 
-    public Map<SimpleUri, Map<String, JsonElement>> getModuleConfigs() {
-        return moduleConfigs;
-    }
+    // --- Basic Info Getters and Setters ---
 
     public String getTitle() {
         return title;
@@ -87,6 +112,8 @@ public class GameManifest {
         this.time = time;
     }
 
+    // --- Block Data Getters and Setters ---
+
     public List<String> getRegisteredBlockFamilies() {
         return registeredBlockFamilies;
     }
@@ -103,6 +130,14 @@ public class GameManifest {
         this.blockIdMap = blockIdMap;
     }
 
+    // --- World Info Methods ---
+
+    /**
+     * Retrieves information about a specific world.
+     *
+     * @param name The world name.
+     * @return The WorldInfo object for the given name.
+     */
     public WorldInfo getWorldInfo(String name) {
         return worlds.get(name);
     }
@@ -111,23 +146,56 @@ public class GameManifest {
         return worlds;
     }
 
+    /**
+     * Adds a world to the manifest.
+     *
+     * @param worldInfo The world information to add.
+     */
     public void addWorld(WorldInfo worldInfo) {
         this.worlds.put(worldInfo.getTitle(), worldInfo);
     }
 
+    /**
+     * Returns an iterable collection of all worlds in the manifest.
+     *
+     * @return The iterable of WorldInfo objects.
+     */
     public Iterable<WorldInfo> getWorlds() {
         return this.worlds.values();
     }
 
-    public static void save(Path toFile, GameManifest gameManifest) throws IOException {
-        try (Writer writer = Files.newBufferedWriter(toFile, TerasologyConstants.CHARSET)) {
-            createGson().toJson(gameManifest, writer);
-        }
+    // --- Module Info Methods ---
+
+    /**
+     * Returns an immutable list of modules used in the game.
+     *
+     * @return The list of NameVersion pairs.
+     */
+    public List<NameVersion> getModules() {
+        return ImmutableList.copyOf(modules);
     }
 
     /**
-     * @param generatorUri the generator Uri
-     * @param configs      the new config params for the world generator
+     * Adds a module (ID and version) to the manifest.
+     *
+     * @param id The module ID.
+     * @param version The module version.
+     */
+    public void addModule(Name id, Version version) {
+        modules.add(new NameVersion(id, version));
+    }
+
+    // --- Module Configs Methods ---
+
+    public Map<SimpleUri, Map<String, JsonElement>> getModuleConfigs() {
+        return moduleConfigs;
+    }
+
+    /**
+     * Saves module configuration components for a world generator.
+     *
+     * @param generatorUri The URI of the generator.
+     * @param configs A map of configuration key to component.
      */
     public void setModuleConfigs(SimpleUri generatorUri, Map<String, Component> configs) {
         Gson gson = createGson();
@@ -140,10 +208,12 @@ public class GameManifest {
     }
 
     /**
-     * @param uri   the uri to look up
-     * @param key   the look-up key
-     * @param clazz the class to convert the data to
-     * @return a config component for the given uri and class or <code>null</code>
+     * Retrieves a specific module configuration component.
+     *
+     * @param uri The URI of the generator.
+     * @param key The config key to retrieve.
+     * @param clazz The component class to deserialize into.
+     * @return The component, or {@code null} if not found.
      */
     public <T extends Component> T getModuleConfig(SimpleUri uri, String key, Class<T> clazz) {
         Map<String, JsonElement> map = getModuleConfigs().get(uri);
@@ -156,12 +226,39 @@ public class GameManifest {
         return gson.fromJson(element, clazz);
     }
 
+    // --- Serialization and Utility Methods ---
+
+    /**
+     * Saves the provided GameManifest to the specified file.
+     *
+     * @param toFile The path to save the file.
+     * @param gameManifest The GameManifest to save.
+     * @throws IOException if an I/O error occurs.
+     */
+    public static void save(Path toFile, GameManifest gameManifest) throws IOException {
+        try (Writer writer = Files.newBufferedWriter(toFile, TerasologyConstants.CHARSET)) {
+            createGson().toJson(gameManifest, writer);
+        }
+    }
+
+    /**
+     * Loads a GameManifest from the specified file path.
+     *
+     * @param filePath The path to the manifest file.
+     * @return The loaded GameManifest.
+     * @throws IOException if an I/O error occurs.
+     */
     public static GameManifest load(Path filePath) throws IOException {
         try (BufferedReader reader = Files.newBufferedReader(filePath, TerasologyConstants.CHARSET)) {
             return createGson().fromJson(reader, GameManifest.class);
         }
     }
 
+    /**
+     * Creates a configured Gson instance for (de)serializing manifests.
+     *
+     * @return The configured Gson instance.
+     */
     private static Gson createGson() {
         return new GsonBuilder()
                 .registerTypeAdapterFactory(new CaseInsensitiveEnumTypeAdapterFactory())
@@ -172,18 +269,13 @@ public class GameManifest {
                 .create();
     }
 
-    public List<NameVersion> getModules() {
-        return ImmutableList.copyOf(modules);
-    }
-
-    public void addModule(Name id, Version version) {
-        modules.add(new NameVersion(id, version));
-    }
-
     /**
-     * The name of the generator used for the main world.
+     * Returns display name of the main world's generator.
      * <p>
-     * Always returns a String, but may be an "ERROR:" string.
+     * If missing, returns an "ERROR:" message.
+     *
+     * @param manager The WorldGeneratorManager used to look up generator info.
+     * @return The display name of the generator, or an error message.
      */
     public String mainWorldDisplayName(WorldGeneratorManager manager) {
         var world = getWorldInfo(TerasologyConstants.MAIN_WORLD);
